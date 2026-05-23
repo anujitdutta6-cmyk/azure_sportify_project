@@ -1,0 +1,15 @@
+{
+	"name": "df-anuj-spotifyazure",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Enabled",
+			"editable": true
+		}
+	},
+	"location": "centralindia",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "96c77c8e-e285-48e7-b82b-f096392aface",
+		"tenantId": "3122aaea-199d-41bd-b70b-2818e3e609a2"
+	}
+}
