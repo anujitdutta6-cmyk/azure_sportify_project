@@ -1,0 +1,27 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"value": "df-anuj-spotifyazure"
+		},
+		"AzureSqlDatabase1_password": {
+			"value": ""
+		},
+		"datalake_az_spotify_accountKey": {
+			"value": ""
+		},
+		"AzureSqlDatabase1_properties_typeProperties_server": {
+			"value": "azureprojectserveranuj.database.windows.net"
+		},
+		"AzureSqlDatabase1_properties_typeProperties_database": {
+			"value": "free-sql-db-1310278"
+		},
+		"AzureSqlDatabase1_properties_typeProperties_userName": {
+			"value": "adminanuj"
+		},
+		"datalake_az_spotify_properties_typeProperties_url": {
+			"value": "https://anujspotifyazureproject.dfs.core.windows.net/"
+		}
+	}
+}
