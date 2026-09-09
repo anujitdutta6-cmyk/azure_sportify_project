@@ -1,924 +1,807 @@
-# 🎵 Spotify Azure Data Engineering Platform
+# 🎵 Spotify Azure Data Engineering Project
 
-An end-to-end **Azure Data Engineering project** designed using an industry-style **Medallion Architecture** to ingest, process, transform, and serve Spotify streaming data for analytics.
+## 📌 Overview
 
-The solution uses **Azure Data Factory (ADF)** for metadata-driven ingestion and orchestration, **Azure Data Lake Storage Gen2 (ADLS Gen2)** as the data lake, and **Azure Databricks with Delta Lake** for scalable data processing and transformation.
+This project demonstrates an end-to-end Azure Data Engineering solution for processing Spotify-style streaming data using **Azure Data Factory, Azure Data Lake Storage Gen2, Azure Databricks, Delta Lake, Structured Streaming, Unity Catalog, and Lakeflow Declarative Pipelines (formerly Delta Live Tables / DLT).**
 
----
-
-## 🏗️ Architecture
+The project follows the **Medallion Architecture**:
 
 ```text
-                         ┌──────────────────────┐
-                         │    SOURCE SYSTEM     │
-                         │                      │
-                         │  Spotify SQL Tables  │
-                         │                      │
-                         │ DimUser              │
-                         │ DimTrack             │
-                         │ DimArtist            │
-                         │ DimDate              │
-                         │ FactStream            │
-                         └──────────┬───────────┘
-                                    │
-                                    │ Initial / Incremental
-                                    │ CDC / Watermark
-                                    ▼
-                         ┌──────────────────────┐
-                         │   AZURE DATA FACTORY │
-                         │                      │
-                         │ Lookup Metadata      │
-                         │ ForEach              │
-                         │ Dynamic Queries      │
-                         │ Copy Activity        │
-                         │ Pipeline Orchestration│
-                         └──────────┬───────────┘
-                                    │
-                                    │ Data Ingestion
-                                    ▼
-                         ┌──────────────────────┐
-                         │      ADLS GEN2       │
-                         │                      │
-                         │ Landing / Raw Data   │
-                         └──────────┬───────────┘
-                                    │
-                                    ▼
-                ╔══════════════════════════════════════╗
-                ║          AZURE DATABRICKS            ║
-                ║                                      ║
-                ║       MEDALLION ARCHITECTURE         ║
-                ║                                      ║
-                ║  ┌───────────────┐                   ║
-                ║  │    BRONZE     │                   ║
-                ║  │ Raw Delta     │                   ║
-                ║  └───────┬───────┘                   ║
-                ║          │                            ║
-                ║          ▼                            ║
-                ║  ┌───────────────┐                   ║
-                ║  │    SILVER     │                   ║
-                ║  │ Clean +       │                   ║
-                ║  │ Validated     │                   ║
-                ║  └───────┬───────┘                   ║
-                ║          │                            ║
-                ║          ▼                            ║
-                ║  ┌───────────────┐                   ║
-                ║  │     GOLD      │                   ║
-                ║  │ Business /    │                   ║
-                ║  │ Analytics     │                   ║
-                ║  └───────────────┘                   ║
-                ╚══════════════════╤═══════════════════╝
-                                   │
-                                   ▼
-                         ┌──────────────────────┐
-                         │  ANALYTICS / BI      │
-                         │                      │
-                         │ SQL / Power BI / BI  │
-                         └──────────────────────┘
+Source
+  ↓
+Azure Data Factory
+  ↓
+Bronze
+  ↓
+Silver
+  ↓
+Lakeflow / DLT Pipeline
+  ↓
+AUTO CDC
+  ↓
+Curated Fact & Dimension Tables
 ```
 
----
+The main purpose of this project is to demonstrate:
 
-# 📌 Project Overview
-
-This project demonstrates how a modern cloud data platform can process Spotify streaming data using an **ELT-oriented architecture**.
-
-The pipeline supports:
-
-* Metadata-driven ingestion
-* Initial/full data load
-* Incremental data load
-* CDC/watermark-based extraction
-* Bronze/Silver/Gold processing
+* Cloud data ingestion
+* Medallion architecture
+* Incremental data processing
+* Structured Streaming
 * Delta Lake
+* Unity Catalog
+* Change Data Capture (CDC)
 * SCD Type 1
 * SCD Type 2
-* Data cleansing and validation
-* Deduplication
-* Dimensional modeling
-* Fact and dimension processing
-* Incremental transformations
-* Pipeline monitoring and logging
+* Fact and Dimension modelling
+* Metadata-driven processing
+* Azure Databricks pipeline orchestration
 
 ---
 
-# 🔄 End-to-End Data Flow
+# 🏗️ Architecture
+
+## High-Level Architecture
 
 ```text
-Source Database
-      │
-      ▼
-ADF Metadata Configuration
-      │
-      ▼
-Lookup
-      │
-      ▼
-ForEach Table
-      │
-      ▼
-Dynamic Copy Activity
-      │
-      ▼
-ADLS Gen2
-      │
-      ▼
-Databricks Bronze
-      │
-      ▼
-Databricks Silver
-      │
-      ▼
-Databricks Gold
-      │
-      ▼
-Analytics / BI
+                 ┌──────────────────────┐
+                 │      Source Data     │
+                 │  Spotify-style data  │
+                 └──────────┬───────────┘
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │ Azure Data Factory   │
+                 │ Ingestion/Orchestration
+                 └──────────┬───────────┘
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │       BRONZE         │
+                 │ Raw source data      │
+                 │ ADLS / Delta         │
+                 └──────────┬───────────┘
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │    Databricks/Spark  │
+                 │ Structured Streaming │
+                 └──────────┬───────────┘
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │       SILVER         │
+                 │ Cleaned & transformed│
+                 │ Streaming Delta      │
+                 │ + _delta_log         │
+                 └──────────┬───────────┘
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │    Unity Catalog     │
+                 │   Silver Tables      │
+                 └──────────┬───────────┘
+                            │
+                            ▼
+              ┌──────────────────────────────┐
+              │ Lakeflow / DLT Pipeline      │
+              │                              │
+              │ Read Silver Catalog Tables   │
+              │              ↓               │
+              │           AUTO CDC           │
+              │              ↓               │
+              │       SCD Type 1 / SCD2      │
+              └──────────────┬───────────────┘
+                             │
+                             ▼
+                 ┌──────────────────────┐
+                 │ Curated Data Layer   │
+                 │                      │
+                 │ FactStream → SCD1    │
+                 │ Dimensions → SCD2    │
+                 └──────────────────────┘
 ```
-
----
-
-# 1️⃣ Source Layer
-
-The source contains Spotify-related relational data.
-
-### Dimension Tables
-
-```text
-DimUser
-DimTrack
-DimArtist
-DimDate
-```
-
-### Fact Table
-
-```text
-FactStream
-```
-
-`FactStream` represents streaming events, while dimension tables provide descriptive information about users, tracks, artists, and dates.
-
----
-
-# 2️⃣ Azure Data Factory
-
-ADF is responsible for **orchestration and data movement**.
-
-Instead of creating a separate pipeline for every table, the project follows a **metadata-driven ingestion pattern**.
-
-Example metadata:
-
-```json
-{
-  "schema": "dbo",
-  "table": "DimUser",
-  "cdc_col": "updated_at",
-  "from_date": ""
-}
-```
-
-The metadata defines:
-
-| Field       | Purpose                                |
-| ----------- | -------------------------------------- |
-| `schema`    | Source schema                          |
-| `table`     | Source table                           |
-| `cdc_col`   | Column used for incremental processing |
-| `from_date` | Initial watermark/start date           |
-
----
-
-# 🔁 Metadata-Driven Processing
-
-ADF performs:
-
-```text
-Metadata
-   │
-   ▼
-Lookup
-   │
-   ▼
-ForEach
-   │
-   ├── DimUser
-   ├── DimTrack
-   ├── DimArtist
-   ├── DimDate
-   └── FactStream
-```
-
-The Copy Activity dynamically builds the source query based on the current table.
-
-This makes the pipeline reusable and scalable.
-
----
-
-# 🔄 Initial Load
-
-During the first execution, there may be no previous watermark.
-
-Example:
-
-```text
-CDC / Watermark = 1900-01-01
-```
-
-The pipeline effectively performs:
-
-```sql
-SELECT *
-FROM dbo.DimUser
-WHERE updated_at > '1900-01-01'
-```
-
-Therefore, existing historical data is loaded.
-
-```text
-SOURCE
-   │
-   │ FULL LOAD
-   ▼
-ADLS
-```
-
----
-
-# ⚡ Incremental Load
-
-After the initial load, the pipeline only extracts newly inserted or updated records.
-
-Example:
-
-```text
-Last Run Time:
-2026-09-05 00:00:00
-```
-
-ADF can generate:
-
-```sql
-SELECT *
-FROM dbo.DimUser
-WHERE updated_at > '2026-09-05 00:00:00'
-```
-
-Instead of processing millions of rows, only changed records are transferred.
-
-### Benefits
-
-* Reduced source-system load
-* Reduced network traffic
-* Faster execution
-* Lower compute/storage cost
-* Scalable ingestion
-
----
-
-# 3️⃣ ADLS Gen2
-
-ADLS Gen2 acts as the centralized data lake storage layer.
-
-Conceptually:
-
-```text
-ADLS
-│
-├── landing/
-│
-├── bronze/
-│
-├── silver/
-│
-└── gold/
-```
-
-ADF writes incoming source data into the lake.
-
-Databricks then processes the data.
-
----
-
-# 4️⃣ Databricks — Medallion Architecture
-
-The Databricks processing layer follows:
-
-```text
-BRONZE
-   │
-   ▼
-SILVER
-   │
-   ▼
-GOLD
-```
-
-Each layer has a separate responsibility.
 
 ---
 
 # 🥉 Bronze Layer
 
-### Purpose
+The Bronze layer contains the raw or source-aligned data.
 
-Bronze represents the **raw/source-aligned layer**.
+### Responsibilities
 
-Main principle:
+* Receive data from the ingestion process
+* Preserve source information
+* Perform minimal transformation
+* Provide a reliable input for downstream processing
 
-> Preserve what was received from the source with minimal transformation.
-
-Example:
-
-```text
-bronze.dim_user
-
-user_id | name   | country | updated_at
------------------------------------------
-101     | Anujit | India   | 2026-09-05
-102     | Rahul  | India   | 2026-09-05
-```
-
-Typical Bronze operations:
-
-* Raw ingestion
-* Schema handling
-* Ingestion metadata
-* Source tracking
-* Append/incremental ingestion
-
-Example technical metadata:
+The Bronze layer acts as the recoverable/raw starting point of the lakehouse.
 
 ```text
-_ingestion_timestamp
-_source_file
-_batch_id
-```
-
-### Why Bronze?
-
-Bronze acts as a **recovery and historical source layer**.
-
-If Silver transformation logic changes:
-
-```text
+Source
+  ↓
+ADF
+  ↓
 Bronze
-   │
-   ├── Silver Version 1
-   │
-   ├── Silver Version 2
-   │
-   └── Silver Version 3
 ```
-
-Silver can be rebuilt without requesting the data again from the source.
 
 ---
 
 # 🥈 Silver Layer
 
-Silver is the **trusted and refined data layer**.
+The Silver layer is where the major cleansing and transformation takes place.
 
-Typical operations:
+In this project, Silver is maintained using **Spark Structured Streaming**.
+
+### Typical processing
 
 ```text
 Bronze
-  │
-  ├── Data cleansing
-  ├── Data validation
-  ├── Deduplication
-  ├── Data type conversion
-  ├── Null handling
-  ├── Standardization
-  ├── CDC processing
-  ├── SCD processing
-  └── Business joins
-  │
-  ▼
+  ↓
+readStream
+  ↓
+Cleansing
+  ↓
+Filtering
+  ↓
+Schema / datatype handling
+  ↓
+Transformation
+  ↓
+writeStream
+  ↓
+Silver Delta Table
+```
+
+The Silver data is written using Delta format.
+
+Therefore, the Silver storage contains:
+
+```text
+Delta data files
++
+_delta_log
+```
+
+The `_delta_log` maintains Delta Lake transaction and table-state information.
+
+### Important
+
+`writeStream` does **not** mean SCD Type 1 or SCD Type 2.
+
+It means that the data is being processed incrementally using Structured Streaming.
+
+SCD logic is handled separately in the downstream CDC process.
+
+---
+
+# 🧠 Important Concept: Streaming ≠ SCD
+
+This project uses two different concepts.
+
+### Structured Streaming
+
+Answers:
+
+> "How do I process new data incrementally?"
+
+Example:
+
+```text
+New Bronze records
+       ↓
+Spark detects new records
+       ↓
+Transformation
+       ↓
 Silver
 ```
 
-Example:
+### SCD
 
-### Bronze
+Answers:
 
-```text
-101 | Anujit | india
-101 | Anujit | india
-102 | Rahul  | India
-```
-
-### Silver
-
-```text
-101 | Anujit | India
-102 | Rahul  | India
-```
-
-Duplicates are removed and values are standardized.
-
----
-
-# 🥇 Gold Layer
-
-Gold contains **business-ready datasets**.
-
-The Gold layer performs:
-
-* Business transformations
-* Aggregations
-* Dimensional modeling
-* Fact/dimension relationships
-* KPI calculations
-* Reporting-oriented transformations
+> "What should happen when an existing business record changes?"
 
 Example:
 
 ```text
-gold.artist_stream_summary
-
-artist_id | artist_name | total_streams
------------------------------------------
-A001      | Artist A    | 125000
-A002      | Artist B    | 98000
+User 101
+India → USA
 ```
 
-Possible Gold datasets:
+SCD Type 1:
 
 ```text
-gold.user_stream_summary
-gold.artist_stream_summary
-gold.track_stream_summary
-gold.daily_stream_summary
-gold.country_stream_summary
+USA
 ```
+
+SCD Type 2:
+
+```text
+India → USA
+```
+
+with historical records preserved.
 
 ---
 
-# ⭐ Why Three Layers?
+# 🏅 Unity Catalog
 
-| Layer  | Main Question                |
-| ------ | ---------------------------- |
-| Bronze | What did the source send?    |
-| Silver | Can we trust/use the data?   |
-| Gold   | What does the business need? |
-
-```text
-Bronze = RAW
-Silver = TRUSTED
-Gold   = BUSINESS
-```
-
----
-
-# 🧱 Delta Lake
-
-Databricks uses **Delta Lake** as the storage format for reliable data processing.
+The processed Silver data is registered and consumed through **Unity Catalog**.
 
 Conceptually:
 
 ```text
-Delta Table
-│
-├── Parquet Data Files
-│
-└── _delta_log
+Silver Delta Storage
+       ↓
+Unity Catalog
+       ↓
+silver.fact_stream
+silver.dim_user
+silver.dim_track
+...
 ```
 
-Delta Lake provides capabilities such as:
-
-* ACID transactions
-* Schema enforcement
-* Schema evolution
-* MERGE/upsert
-* Time travel
-* Reliable batch processing
-* Reliable streaming processing
+This allows downstream pipelines to work with tables rather than manually navigating storage folders.
 
 ---
 
-# 📝 Delta Transaction Log
+# 🏆 Lakeflow / DLT Pipeline
 
-Every Delta table contains:
+The second major part of the architecture is the Lakeflow Declarative Pipeline.
 
-```text
-_delta_log/
-```
+Historically this technology was known as **Delta Live Tables (DLT)**.
 
-The transaction log records table changes and helps Delta determine the current state of the table.
-
-Therefore:
+The pipeline consumes the Silver catalog tables.
 
 ```text
-Delta Table
-     │
-     ├── Data
-     │
-     └── Transaction History
+Silver Catalog Table
+        ↓
+Lakeflow Pipeline
+        ↓
+Streaming Target
+        ↓
+AUTO CDC
 ```
 
-This is different from application/pipeline logs.
+The important point is:
+
+> The Lakeflow pipeline is not simply "another Silver transformation."
+
+Its purpose in this project is to apply change-data-processing logic and maintain the curated fact/dimension datasets.
 
 ---
 
-# 🔀 MERGE / UPSERT
+# 🔄 AUTO CDC
 
-For incremental processing, Delta `MERGE` can identify whether an incoming record already exists.
+AUTO CDC is used to apply source changes to the target tables.
 
 Conceptually:
 
 ```text
-Incoming Record
-      │
-      ▼
-Does Key Exist?
-    /       \
-  YES       NO
-   │         │
-UPDATE     INSERT
+Silver Change
+     ↓
+AUTO CDC
+     ↓
+Find business key
+     ↓
+Determine INSERT / UPDATE / DELETE
+     ↓
+Apply SCD strategy
 ```
 
-Example:
-
-```sql
-MERGE INTO silver.dim_user AS target
-USING bronze.dim_user AS source
-ON target.user_id = source.user_id
-
-WHEN MATCHED THEN
-  UPDATE SET *
-
-WHEN NOT MATCHED THEN
-  INSERT *
-```
+AUTO CDC supports SCD Type 1 and SCD Type 2.
 
 ---
 
-# 🔢 SCD Type 1
+# 📊 FactStream — SCD Type 1
 
-SCD1 keeps only the latest value.
+`FactStream` uses SCD Type 1.
 
-Before:
+Example:
+
+### Before
 
 ```text
-101 | Anujit | India
+user_id | track_id | status
+---------------------------
+101     | T001     | active
 ```
 
-After:
+Suppose the incoming change is:
 
 ```text
-101 | Anujit | UK
+101 | T001 | inactive
+```
+
+The target becomes:
+
+```text
+user_id | track_id | status
+---------------------------
+101     | T001     | inactive
 ```
 
 The previous value is overwritten.
 
-### Suitable for:
+### Why SCD Type 1?
 
-* Current attributes
-* Non-historical data
-* Attributes where previous values are not required
+For this fact dataset, the requirement is to maintain the latest/current value rather than preserve historical versions of the same record.
 
 ---
 
-# 📚 SCD Type 2
+# 📚 Dimension Tables — SCD Type 2
 
-SCD2 maintains historical versions.
+Dimension tables use SCD Type 2 when historical changes need to be preserved.
 
 Example:
 
-```text
-user_id | country | start_date | end_date   | current
-------------------------------------------------------
-101     | India   | 2026-01-01 | 2026-09-05 | false
-101     | UK      | 2026-09-06 | NULL       | true
-```
-
-When the attribute changes:
+### Initial record
 
 ```text
-Old Record
-    │
-    ▼
-Expire old version
-    │
-    ▼
-Insert new version
+user_id | country | start_date | end_date
+------------------------------------------
+101     | India   | 2026-01-01 | NULL
 ```
 
-SCD2 is useful when historical analysis is required.
+Later:
+
+```text
+country = USA
+```
+
+The SCD2 result becomes:
+
+```text
+user_id | country | start_date | end_date
+------------------------------------------
+101     | India   | 2026-01-01 | 2026-09-05
+101     | USA     | 2026-09-05 | NULL
+```
+
+Now the system knows both:
+
+* What the value was
+* What the current value is
+
+This is useful for historical analytics.
 
 ---
 
-# 🔄 Complete Incremental Flow
+# ❓ Where Is the Gold Layer?
+
+This is an important architectural detail of this project.
+
+A traditional Medallion implementation may look like:
 
 ```text
-SOURCE
-  │
-  │ updated_at > last_watermark
-  ▼
-ADF
-  │
-  ▼
 ADLS
-  │
-  ▼
-BRONZE
-  │
-  │ Clean / Validate / Deduplicate
-  ▼
-SILVER
-  │
-  │ MERGE / SCD / Business Transformation
-  ▼
-GOLD
-  │
-  ▼
-BI / Analytics
+ ├── bronze/
+ ├── silver/
+ └── gold/
 ```
+
+However, this project does **not** rely on a manually managed `gold/` folder in ADLS.
+
+Instead, the final curated datasets are maintained through the Lakeflow pipeline and exposed through the Databricks/Unity Catalog table layer.
+
+Therefore:
+
+```text
+No visible ADLS/gold folder
+        ≠
+No Gold/business layer
+```
+
+The word **Gold** describes the logical responsibility of the dataset: business-ready / curated data.
+
+The physical storage location is a separate concern.
+
+With Unity Catalog managed tables, Databricks manages the underlying storage location rather than requiring developers to manually create and manage a traditional `/gold` directory.
 
 ---
 
-# 🚦 Initial vs Incremental
+# 🧩 Physical vs Logical Architecture
 
-### Initial
+This distinction is important when explaining the project.
+
+### Logical architecture
+
+```text
+Bronze
+  ↓
+Silver
+  ↓
+Gold / Curated
+```
+
+### Physical implementation in this project
+
+```text
+ADLS / Delta
+     ↓
+Bronze
+     ↓
+Silver Delta + _delta_log
+     ↓
+Unity Catalog
+     ↓
+Lakeflow Pipeline
+     ↓
+AUTO CDC
+     ↓
+Curated Fact & Dimension Tables
+```
+
+Therefore, the project demonstrates a **logical Gold layer without requiring a manually visible ADLS Gold folder**.
+
+---
+
+# 🔄 End-to-End Example
+
+Imagine Spotify receives this event:
+
+```text
+user_id = 101
+track_id = T001
+artist = Artist_A
+country = India
+timestamp = 10:05
+```
+
+## Step 1 — ADF
+
+ADF orchestrates ingestion.
 
 ```text
 Source
-  │
-  │ FULL
-  ▼
+ ↓
+ADF
+ ↓
 Bronze
-  │
-  ▼
-Silver
-  │
-  ▼
-Gold
-```
-
-### Incremental
-
-```text
-Source
-  │
-  │ ONLY CHANGES
-  ▼
-Bronze
-  │
-  │ PROCESS CHANGES
-  ▼
-Silver
-  │
-  │ UPDATE AFFECTED DATA
-  ▼
-Gold
 ```
 
 ---
 
-# 🔍 Data Quality
+## Step 2 — Bronze
 
-Data quality checks are applied during refinement.
-
-Examples:
+Raw data is stored.
 
 ```text
-user_id IS NOT NULL
-track_id IS NOT NULL
-artist_id IS NOT NULL
-stream_timestamp IS NOT NULL
+101 | T001 | Artist_A | India | 10:05
 ```
-
-Invalid records can be:
-
-```text
-Rejected
-Quarantined
-Logged
-```
-
-while valid records continue through the pipeline.
 
 ---
 
-# 📊 Logging & Monitoring
+## Step 3 — Silver Streaming
 
-The architecture provides monitoring at multiple levels.
-
-### ADF
-
-Tracks:
+Spark reads the Bronze data using Structured Streaming.
 
 ```text
-Pipeline status
-Activity status
-Rows read
-Rows written
-Execution duration
-Errors
+readStream
+    ↓
+transform
+    ↓
+writeStream
 ```
 
-### Databricks
-
-Tracks:
+The cleaned record is written to the Silver Delta table.
 
 ```text
-Job execution
-Spark stages
-Task failures
-Cluster information
-Notebook errors
-```
-
-### Delta
-
-```text
+Silver Delta
++
 _delta_log
 ```
 
-Tracks Delta table transactions.
+---
 
-### Pipeline Event Logs
+## Step 4 — Unity Catalog
 
-Lakeflow/Databricks pipeline event logs can provide:
+Silver is available as a catalog table.
 
 ```text
-Pipeline events
-Data quality results
-Lineage
-Execution information
-Errors
+catalog.silver.fact_stream
 ```
 
 ---
 
-# 🗂️ Data Model
+## Step 5 — Lakeflow Pipeline
 
-The project follows a dimensional/star-schema-oriented model.
+The pipeline reads the Silver table.
 
 ```text
-                  DimUser
-                     │
-                     │
-DimDate ──────── FactStream ──────── DimTrack
-                     │
-                     │
-                 DimArtist
+Silver Catalog
+      ↓
+Lakeflow
 ```
 
-### Fact
+---
+
+## Step 6 — AUTO CDC
+
+AUTO CDC determines how the incoming change should be applied.
+
+```text
+INSERT
+UPDATE
+DELETE
+```
+
+---
+
+## Step 7 — SCD Processing
+
+For `FactStream`:
+
+```text
+SCD Type 1
+```
+
+For dimensions:
+
+```text
+SCD Type 2
+```
+
+---
+
+## Step 8 — Final Curated Data
+
+The final datasets are available as curated tables:
 
 ```text
 FactStream
-```
-
-Contains streaming events/measures.
-
-### Dimensions
-
-```text
 DimUser
 DimTrack
 DimArtist
 DimDate
 ```
 
-Provide descriptive attributes used for analysis.
+These are the datasets intended for downstream analytical/business consumption.
+
+---
+
+# 🗂️ Metadata-Driven Processing
+
+The repository also contains configuration files such as:
+
+```text
+cdc.json
+loop_input
+empty.json
+```
+
+For example, `loop_input` defines datasets and CDC-related metadata:
+
+```json
+[
+  {
+    "schema": "dbo",
+    "table": "DimUser",
+    "cdc_col": "updated_at",
+    "from_date": ""
+  },
+  {
+    "schema": "dbo",
+    "table": "DimTrack",
+    "cdc_col": "updated_at",
+    "from_date": ""
+  },
+  {
+    "schema": "dbo",
+    "table": "DimDate",
+    "cdc_col": "date",
+    "from_date": ""
+  },
+  {
+    "schema": "dbo",
+    "table": "DimArtist",
+    "cdc_col": "updated_at",
+    "from_date": ""
+  },
+  {
+    "schema": "dbo",
+    "table": "FactStream",
+    "cdc_col": "stream_timestamp",
+    "from_date": ""
+  }
+]
+```
+
+This allows the processing logic to be driven by configuration rather than hardcoding every table independently.
+
+---
+
+# 📂 Repository Structure
+
+```text
+spotify_azure_project/
+│
+├── Databricks Code/
+│   └── spotify_dab.dbc
+│
+├── source_scripts/
+│   └── Source/ingestion related scripts
+│
+├── cdc.json
+│
+├── empty.json
+│
+├── loop_input
+│
+└── README.md
+```
 
 ---
 
 # 🛠️ Technology Stack
 
-| Technology         | Purpose                    |
-| ------------------ | -------------------------- |
-| Azure Data Factory | Orchestration & ingestion  |
-| ADLS Gen2          | Data lake storage          |
-| Azure Databricks   | Data processing            |
-| Apache Spark       | Distributed processing     |
-| PySpark            | Transformation             |
-| Spark SQL          | SQL-based transformation   |
-| Delta Lake         | Reliable lakehouse storage |
-| Lakeflow / DLT     | Declarative data pipelines |
-| Git/GitHub         | Source control & CI/CD     |
-| Power BI / SQL     | Analytics layer            |
+| Technology                   | Purpose                                                     |
+| ---------------------------- | ----------------------------------------------------------- |
+| Azure Data Factory           | Data ingestion and orchestration                            |
+| Azure Data Lake Storage Gen2 | Cloud data lake storage                                     |
+| Azure Databricks             | Data engineering and Spark processing                       |
+| Apache Spark                 | Distributed data processing                                 |
+| Structured Streaming         | Incremental/streaming processing                            |
+| Delta Lake                   | ACID tables and transaction management                      |
+| Unity Catalog                | Table governance and discovery                              |
+| Lakeflow / DLT               | Declarative pipeline processing                             |
+| AUTO CDC                     | Change-data application                                     |
+| SCD Type 1                   | Current-state dimensions/facts where history isn't required |
+| SCD Type 2                   | Historical dimension tracking                               |
+| GitHub                       | Source control                                              |
 
 ---
 
-# 🎯 Key Engineering Techniques
+# 📌 Important Design Decisions
 
-This project demonstrates:
+### Why Streaming in Silver?
 
-```text
-✓ Metadata-driven pipelines
-✓ Dynamic ingestion
-✓ Initial/full load
-✓ Incremental load
-✓ CDC / watermark processing
-✓ Medallion Architecture
-✓ Delta Lake
-✓ Delta MERGE
-✓ SCD Type 1
-✓ SCD Type 2
-✓ Deduplication
-✓ Data quality
-✓ Dimensional modeling
-✓ Fact & dimension design
-✓ Pipeline monitoring
-✓ Git-based development
-```
+Because the Silver layer needs to process incoming Bronze data incrementally.
 
----
+### Why Delta?
 
-# 💡 Why This Architecture?
+Delta provides reliable table storage, transaction handling and metadata through `_delta_log`.
 
-The architecture separates responsibilities:
+### Why Unity Catalog?
 
-```text
-ADF
- ↓
-INGEST + ORCHESTRATE
+To provide governed table access and make datasets available through catalog/schema/table names.
 
-ADLS
- ↓
-STORE
+### Why AUTO CDC?
 
-DATABRICKS
- ↓
-PROCESS + TRANSFORM
+To simplify applying inserts, updates and deletes to streaming targets.
 
-BRONZE
- ↓
-RAW
+### Why SCD Type 1 for FactStream?
 
-SILVER
- ↓
-TRUSTED
+The requirement is to maintain the latest state rather than preserve historical versions.
 
-GOLD
- ↓
-BUSINESS
+### Why SCD Type 2 for dimensions?
 
-BI
- ↓
-CONSUME
-```
+Dimensions such as users/artists/tracks may require historical tracking.
 
-This separation makes the platform:
+### Why no visible Gold folder?
 
-* Scalable
-* Maintainable
-* Reusable
-* Auditable
-* Fault-tolerant
-* Suitable for incremental processing
-* Easier to troubleshoot
-* Easier to extend with additional source tables
+Because Gold is a logical/business layer in this implementation. The curated datasets are maintained through the Lakeflow/Unity Catalog table architecture rather than a manually managed `ADLS/gold/` directory.
 
 ---
 
-# 🚀 Production-Style Extension
+# 🎯 Key Interview Explanation
 
-For a production implementation, this architecture can be extended with:
+If asked:
+
+**"Explain your Spotify Databricks architecture."**
+
+A professional answer is:
+
+> This project follows a Medallion-style lakehouse architecture. Azure Data Factory handles ingestion into the Bronze layer. Databricks Structured Streaming processes the Bronze data and incrementally maintains Silver Delta tables. The Silver datasets are registered and consumed through Unity Catalog. A downstream Lakeflow Declarative Pipeline consumes these Silver tables and uses AUTO CDC to apply changes to curated fact and dimension datasets. FactStream is maintained using SCD Type 1, while the dimension tables use SCD Type 2 to preserve history. The project does not require a manually visible Gold folder in ADLS because the curated business layer is represented through the governed Unity Catalog/Lakeflow tables.
+
+---
+
+# ⚠️ Important Interview Clarification
+
+Do **not** say:
+
+> "Silver means streaming and Gold means CDC."
+
+Instead say:
+
+> "Streaming and CDC are processing techniques, while Bronze, Silver and Gold describe logical data responsibilities."
+
+This distinction is important.
+
+A different production system could use:
 
 ```text
-Azure Key Vault
-       │
-       ▼
-Managed Identity
-       │
-       ▼
-ADF ── ADLS ── Databricks
-                  │
-                  ├── Unity Catalog
-                  ├── Delta Lake
-                  ├── Lakeflow
-                  ├── Data Quality
-                  ├── Monitoring
-                  └── CI/CD
+Bronze → Streaming
+Silver → Streaming
+Gold → Materialized Views
 ```
 
-Additional production capabilities can include:
+or:
 
-* Unity Catalog governance
-* RBAC
-* Azure Key Vault secrets
-* Managed identities
-* Schema evolution
-* Data lineage
-* CI/CD
+```text
+Bronze → Batch
+Silver → Batch
+Gold → Streaming
+```
+
+depending on business requirements.
+
+---
+
+# 🏢 Industry Perspective
+
+This architecture is industry-relevant, but it should not be described as the only production architecture.
+
+Databricks recommends Medallion architecture as a logical design pattern, with Bronze representing raw data, Silver refined/validated data and Gold business-ready data.
+
+Current Databricks guidance also recommends Unity Catalog managed tables for lakehouse data, including Bronze, Silver and Gold, rather than requiring every layer to be represented by a manually managed cloud-storage folder.
+
+Production architectures are normally designed around:
+
+* Data latency requirements
+* Source-system capabilities
+* CDC availability
+* Data volume
+* Data quality
+* Cost
+* Governance
+* Downstream consumers
+* Historical requirements
+
+The architecture should therefore be **requirement-driven rather than color-driven**.
+
+---
+
+# 🚀 Future Improvements
+
+Potential production enhancements:
+
+* Data quality expectations
+* Unity Catalog lineage
+* Pipeline monitoring
+* Error handling and retry mechanisms
+* CI/CD with Databricks Asset Bundles
 * Automated testing
-* Retry/recovery
+* Schema evolution handling
+* Data observability
 * Alerting
-* Cost optimization
+* Performance optimization
+* Documentation of business keys and SCD rules
+* Automated deployment across Dev / QA / Prod
 
 ---
 
-# 👨‍💻 Author
+# 📚 Key Concepts Learned
+
+This project demonstrates practical understanding of:
+
+* Azure Data Factory
+* ADLS Gen2
+* Databricks
+* Apache Spark
+* PySpark
+* Structured Streaming
+* Delta Lake
+* Delta transaction logs
+* Unity Catalog
+* Lakeflow Declarative Pipelines
+* AUTO CDC
+* Change Data Capture
+* SCD Type 1
+* SCD Type 2
+* Fact and Dimension modelling
+* Medallion Architecture
+* Metadata-driven pipelines
+* Incremental data processing
+
+---
+
+# 👤 Author
 
 **Anujit Dutta**
 
-Azure Data Engineering | Databricks | PySpark | ADF | SQL | Informatica
+Azure / Data Engineering | Databricks | PySpark | SQL | ADF | Delta Lake
 
----
-
-## 📌 Project Objective
-
-The primary objective of this project is to demonstrate an end-to-end **cloud data engineering solution** using Azure services and Databricks, with emphasis on reusable ingestion, incremental processing, Medallion Architecture, Delta Lake, CDC/SCD processing, and analytics-ready data modeling.
+This repository is maintained as a hands-on Azure Data Engineering project and as a reference for understanding production-oriented lakehouse architecture.
