@@ -5,6 +5,9 @@
 		"factoryName": {
 			"value": "df-anuj-spotifyazure"
 		},
+		"AzureDatabricks1_accessToken": {
+			"value": ""
+		},
 		"AzureSqlDatabase1_password": {
 			"value": ""
 		},
